@@ -1,0 +1,21 @@
+{
+    "name": "guessword_server",
+    "version": "1.0.0",
+    "description": "Simple WebSocket server using Bun and TypeScript",
+    "main": "src/index.ts",
+    "scripts": {
+        "dev": "bun run --watch src/index.ts",
+        "start": "bun run src/index.ts",
+        "build": "bun build src/index.ts --outdir dist",
+        "type-check": "tsc --noEmit"
+    },
+    "dependencies": {
+        "bun-types": "latest"
+    },
+    "devDependencies": {
+        "typescript": "^5.0.0"
+    },
+    "engines": {
+        "bun": ">=1.0.0"
+    }
+}
