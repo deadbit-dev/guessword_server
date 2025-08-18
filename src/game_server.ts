@@ -1,0 +1,113 @@
+import { NetMessage, NetIdMessages, NetMessages } from "./protocol";
+import { WsClient, WsServer } from "./ws_server";
+
+interface Client {
+    id: string;
+    ws: WsClient;
+}
+
+export function GameServer(port: number = 3000) {
+    let server: ReturnType<typeof WsServer<unknown>>;
+    const clients: Map<string, Client> = new Map();
+
+    function start() {
+        server = WsServer(port,
+            on_client_connected,
+            on_client_disconnected,
+            (client, data) => {
+                const parsed_message = JSON.parse(data as string) as NetMessage;
+                on_message(client, parsed_message.id, parsed_message.data);
+            }
+        );
+    }
+
+    function on_client_connected(_client: WsClient) {
+        const clientId = generateClientId();
+        const client: Client = { id: clientId, ws: _client };
+        clients.set(clientId, client);
+        console.log(`Client connected: ${clientId}`);
+        server.broadcast({
+            id: NetIdMessages.CONNECT,
+            data: {
+                clientId,
+                totalClients: clients.size
+            }
+        });
+    }
+
+    function on_client_disconnected(_client: WsClient) {
+        const client = findClientByWebSocket(_client);
+        if (!client) return;
+
+        clients.delete(client.id);
+        console.log(`Client disconnected: ${client.id}`);
+
+        server.broadcast({
+            id: NetIdMessages.DISCONNECT,
+            data: {
+                clientId: client.id,
+                totalClients: clients.size
+            }
+        });
+    }
+
+    function on_message<T extends keyof NetMessages>(socket: WsClient, id_message: T, _message: NetMessages[T]) {
+        switch (id_message) {
+            case NetIdMessages.PING:
+                const ping_message = _message as NetMessages[NetIdMessages.PING];
+                server.send(socket, {
+                    id: NetIdMessages.PONG,
+                    data: {
+                        client_time: ping_message.client_time,
+                        server_time: Date.now()
+                    }
+                });
+                break;
+            case NetIdMessages.ECHO:
+                server.send(socket, {
+                    id: NetIdMessages.ECHO,
+                    data: _message,
+                });
+                break;
+            case NetIdMessages.BROADCAST:
+                const client = findClientByWebSocket(socket);
+                if (!client) return;
+
+                server.broadcast({
+                    id: NetIdMessages.BROADCAST,
+                    data: {
+                        clientId: client.id,
+                        message: _message
+                    }
+                });
+                break;
+
+            default:
+                // NOTE: Эхо для неизвестных типов сообщений
+                server.send(socket, {
+                    id: NetIdMessages.ECHO,
+                    data: _message,
+                });
+        }
+    }
+
+    // NOTE: for now we just simple generate client id
+
+    function generateClientId(): string {
+        return Math.random().toString(36).substring(2, 15) +
+            Math.random().toString(36).substring(2, 15);
+    }
+
+    function findClientByWebSocket(ws: WsClient): Client | undefined {
+        for (const client of clients.values()) {
+            if (client.ws === ws) {
+                return client;
+            }
+        }
+        return undefined;
+    }
+
+    return {
+        start
+    }
+}
