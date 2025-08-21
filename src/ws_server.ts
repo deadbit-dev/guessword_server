@@ -41,10 +41,6 @@ export function WsServer<T>(port: number,
         }
     });
 
-    function broadcast(data: object) {
-        server.publish("all", JSON.stringify(data));
-    }
-
     function send(client: WsClient, data: object) {
         client.send(JSON.stringify(data));
     }
@@ -56,7 +52,6 @@ export function WsServer<T>(port: number,
 
     return {
         send,
-        broadcast,
         remove_client_by_socket,
         server
     }

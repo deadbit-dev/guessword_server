@@ -24,15 +24,14 @@ export function GameServer(port: number = 3000) {
     function on_client_connected(_client: WsClient) {
         const clientId = generateClientId();
         const client: Client = { id: clientId, ws: _client };
+
         clients.set(clientId, client);
-        console.log(`Client connected: ${clientId}`);
-        server.broadcast({
-            id: NetIdMessages.CONNECT,
-            data: {
-                clientId,
-                totalClients: clients.size
-            }
-        });
+        console.log(`Client connected: ${client.id}`);
+
+        broadcast(NetIdMessages.CONNECT, {
+            client_id: client.id,
+            total_clients: clients.size
+        }, [client.id]);
     }
 
     function on_client_disconnected(_client: WsClient) {
@@ -42,13 +41,10 @@ export function GameServer(port: number = 3000) {
         clients.delete(client.id);
         console.log(`Client disconnected: ${client.id}`);
 
-        server.broadcast({
-            id: NetIdMessages.DISCONNECT,
-            data: {
-                clientId: client.id,
-                totalClients: clients.size
-            }
-        });
+        broadcast(NetIdMessages.DISCONNECT, {
+            client_id: client.id,
+            total_clients: clients.size
+        }, [client.id]);
     }
 
     function on_message<T extends keyof NetMessages>(socket: WsClient, id_message: T, _message: NetMessages[T]) {
@@ -73,13 +69,10 @@ export function GameServer(port: number = 3000) {
                 const client = findClientByWebSocket(socket);
                 if (!client) return;
 
-                server.broadcast({
-                    id: NetIdMessages.BROADCAST,
-                    data: {
-                        clientId: client.id,
-                        message: _message
-                    }
-                });
+                broadcast(NetIdMessages.BROADCAST, {
+                    client_id: client.id,
+                    data: _message
+                }, [client.id]);
                 break;
 
             default:
@@ -88,6 +81,16 @@ export function GameServer(port: number = 3000) {
                     id: NetIdMessages.ECHO,
                     data: _message,
                 });
+        }
+    }
+
+    function broadcast(id_message: keyof NetMessages, data: NetMessages[keyof NetMessages], except_client_ids?: string[]) {
+        for (const client of clients.values()) {
+            if (except_client_ids && except_client_ids.includes(client.id)) continue;
+            server.send(client.ws, {
+                id: id_message,
+                data: data
+            });
         }
     }
 
